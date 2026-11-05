@@ -22,7 +22,7 @@ type SubmitInput struct {
 	IdempotencyKey string
 }
 
-var ErrKeyConflict = errors.New("key already Exists")
+var ErrKeyConflict = errors.New("key already exists")
 
 func Submit(ctx context.Context, pool *pgxpool.Pool, input SubmitInput) (queue.Job, bool, error) {
 
@@ -40,7 +40,6 @@ func Submit(ctx context.Context, pool *pgxpool.Pool, input SubmitInput) (queue.J
 		input.Payload = []byte("{}")
 	}
 
-	//
 
 	sql := `INSERT INTO jobs(tenant_id, type, payload, priority, run_at, max_attempts, idempotency_key)
 	VALUES ($1,$2,$3,$4,coalesce($5::timestamptz, now()),$6,$7)
@@ -53,7 +52,26 @@ func Submit(ctx context.Context, pool *pgxpool.Pool, input SubmitInput) (queue.J
 	err := pool.QueryRow(ctx, sql, input.TenantID, input.Type, input.Payload, input.Priority, runAt, input.MaxAttempts, input.IdempotencyKey).Scan(&job.ID, &job.TenantID, &job.Type, &job.Payload, &job.Status, &job.Priority, &job.RunAt, &job.Attempts, &job.MaxAttempts, &job.LastError, &job.MaxRunTime, &job.LeaseOwner, &job.LeaseEnd, &job.IdempotencyKey, &job.CreatedAt, &job.UpdatedAt, &job.FinishedAt)
 
 	if errors.Is(err, pgx.ErrNoRows) {
-		return queue.Job{}, false, errors.New("already exist, TODO")
+		selectSQL := `SELECT id, tenant_id, type, payload, status, priority, run_at, attempts,
+		max_attempts, last_error, max_run_time, lease_owner, lease_end,
+		idempotency_key, created_at, updated_at, finished_at,
+		payload = $3::jsonb AS same_payload
+		FROM jobs
+		WHERE tenant_id = $1 AND idempotency_key = $2`
+
+		var existing queue.Job
+		var samePayload bool
+
+		err = pool.QueryRow(ctx, selectSQL, input.TenantID, input.IdempotencyKey, input.Payload).Scan(
+			&existing.ID, &existing.TenantID, &existing.Type, &existing.Payload, &existing.Status, &existing.Priority, &existing.RunAt, &existing.Attempts, &existing.MaxAttempts, &existing.LastError, &existing.MaxRunTime, &existing.LeaseOwner, &existing.LeaseEnd, &existing.IdempotencyKey, &existing.CreatedAt, &existing.UpdatedAt, &existing.FinishedAt, &samePayload)
+		if err != nil {
+			return queue.Job{}, false, fmt.Errorf("read existing job: %w", err)
+		}
+
+		if !samePayload {
+			return queue.Job{}, false, ErrKeyConflict
+		}
+		return existing, false, nil
 	}
 	if err != nil {
 		return queue.Job{}, false, fmt.Errorf("insert job: %w", err)
