@@ -1,9 +1,9 @@
 package queue
 
 import (
-	"fmt"
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -19,8 +19,10 @@ func scanJob(row pgx.Row) (Job, error) {
 	job := Job{}
 	err := row.Scan(&job.ID, &job.TenantID, &job.Type, &job.Payload, &job.Status, &job.Priority, &job.RunAt, &job.Attempts, &job.MaxAttempts, &job.LastError, &job.MaxRunTime, &job.LeaseOwner, &job.LeaseEnd, &job.IdempotencyKey, &job.CreatedAt, &job.UpdatedAt, &job.FinishedAt)
 
-	if err != nil {return Job{}, fmt.Errorf("scan error: %w", err)}
-	
+	if err != nil {
+		return Job{}, fmt.Errorf("scan error: %w", err)
+	}
+
 	return job, nil
 }
 
