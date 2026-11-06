@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/hardik-thapar/dispatch/internal/testutil"
@@ -38,4 +39,58 @@ func TestSubmit_NewJob(t *testing.T) {
 	if string(job.Payload) != "{}" {
 		t.Errorf("payload = %s, want {}", job.Payload)
 	}
+}
+
+func TestSubmit_SameKeySamePayload(t *testing.T) {
+	pool := testutil.NewTestPool(t)
+	ctx := context.Background()
+
+	in := SubmitInput{
+		TenantID:       "tenant-a",
+		Type:           "send_webhook",
+		Payload:        []byte(`{"url":"a"}`),
+		IdempotencyKey: "key-1",
+	}
+
+	first, _, err := Submit(ctx, pool, in)
+	if err != nil {
+		t.Fatalf("first submit: %v", err)
+	}
+
+	second, created, err := Submit(ctx, pool, in)
+	if err != nil {
+		t.Fatalf("second submit: %v", err)
+	}
+	if created {
+		t.Error("created = true, want false")
+	}
+	if first.ID != second.ID {
+		t.Errorf("ids differ: %s and %s", first.ID, second.ID)
+	}
+}
+
+func TestSubmit_SameKeyDifferentPayload(t *testing.T) {
+	pool := testutil.NewTestPool(t)
+	ctx := context.Background()
+
+	in := SubmitInput{
+		TenantID:       "tenant-a",
+		Type:           "send-webhook",
+		Payload:        []byte(`{"url":"a"}`),
+		IdempotencyKey: "key-1",
+	}
+
+	_, _, err := Submit(ctx, pool, in)
+	if err != nil {
+		t.Fatalf("first submit: %v", err)
+	}
+
+	in2 := in
+	in2.Payload = []byte(`{"url":"b"}`)
+
+	_, _, err = Submit(ctx, pool, in2)
+	if !errors.Is(err, ErrKeyConflict) {
+		t.Errorf("err = %v, want ErrKeyConflict", err)
+	}
+
 }
