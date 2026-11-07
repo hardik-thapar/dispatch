@@ -54,7 +54,12 @@ func TestRunPool_RunsAllJobsWithLimitedConcurrency(t *testing.T) {
 	}
 	close(jobs) // no more jobs: the pool should finish and return
 
-	newTestWorker(pool, reg).runPool(ctx, 2, jobs)
+	w := newTestWorker(pool, reg)
+	w.inFlight.Add(int32(len(claimed))) // the claimer will do this later
+	w.runPool(ctx, 2, jobs)
+	if n := w.inFlight.Load(); n != 0 {
+		t.Errorf("inFlight = %d after the pool finished, want 0", n)
+	}
 
 	stats, err := queue.GetStats(ctx, pool, "")
 	if err != nil {

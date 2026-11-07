@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -19,6 +20,7 @@ type Worker struct {
 	pool     *pgxpool.Pool
 	registry *handlers.Registry
 	backoff  retry.Backoff
+	inFlight atomic.Int32
 	id       string // the worker's name, used as the lease owner
 }
 
@@ -73,6 +75,7 @@ func (w *Worker) runPool(ctx context.Context, concurrency int, jobs <-chan queue
 			defer wg.Done()
 			for job := range jobs {
 				err := w.runJob(ctx, job)
+				w.inFlight.Add(-1)
 				if err != nil {
 					log.Printf("worker %s: job %s: %v", w.id, job.ID, err)
 				}
