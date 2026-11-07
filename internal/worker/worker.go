@@ -129,3 +129,23 @@ func (w *Worker) claimLoop(ctx context.Context, concurrency int, jobs chan<- que
 		}
 	}
 }
+
+func (w *Worker) Run(ctx context.Context, concurrency int) error {
+	if concurrency < 1 {
+		return fmt.Errorf("concurrency must be at least 1, got %d", concurrency)
+	}
+
+	jobs := make(chan queue.Job, concurrency)
+	jobCtx := context.WithoutCancel(ctx)
+
+	poolDone := make(chan struct{})
+	go func() {
+		w.runPool(jobCtx, concurrency, jobs) // uses jobCtx so even when ctx is cancelled, all jobs that are claimed are finished
+		close(poolDone)
+	}()
+
+	w.claimLoop(ctx, concurrency, jobs)
+	close(jobs)
+	<-poolDone // wait until the pool has finished everything
+	return nil
+}
