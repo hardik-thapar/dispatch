@@ -31,6 +31,7 @@ func NewRouter(pool *pgxpool.Pool) *gin.Engine {
 	r.GET("/jobs/:id", s.getJob)
 	r.POST("/jobs/:id/cancel", s.cancelJob)
 	r.GET("/stats", s.getStats)
+	r.POST("/jobs/:id/replay", s.replayJob)
 	return r
 }
 
