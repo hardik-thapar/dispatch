@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -28,16 +29,25 @@ func New(pool *pgxpool.Pool, registry *handlers.Registry, backoff retry.Backoff,
 func (w *Worker) runJob(ctx context.Context, job queue.Job) error {
 	// Step 1: run
 	var handlerErr error
+	timeout := time.Duration(job.MaxRunTime) * time.Second
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	h, found := w.registry.Get(job.Type)
 	if !found {
 		handlerErr = fmt.Errorf("no handler for type %q", job.Type)
 	} else {
-		handlerErr = h(ctx, job) // call the handler h with ctx and job
+		handlerErr = h(runCtx, job) // call the handler h with runCtx and job
 	}
-
+	if handlerErr != nil && runCtx.Err() == context.DeadlineExceeded {
+		handlerErr = fmt.Errorf("job timed out after %ds", int(timeout.Seconds()))
+	}
 	// Step 2: record
 	var recorded bool
 	var err error
+
 	if handlerErr == nil {
 		recorded, err = queue.Succeed(ctx, w.pool, job.ID, job.Attempts)
 	} else {
