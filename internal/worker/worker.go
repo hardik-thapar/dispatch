@@ -17,16 +17,21 @@ import (
 
 // Worker runs claimed jobs: it calls the right handler and records the result.
 type Worker struct {
-	pool     *pgxpool.Pool
-	registry *handlers.Registry
-	backoff  retry.Backoff
-	inFlight atomic.Int32
-	id       string // the worker's name, used as the lease owner
+	pool         *pgxpool.Pool
+	registry     *handlers.Registry
+	backoff      retry.Backoff
+	inFlight     atomic.Int32
+	lease        time.Duration
+	pollInterval time.Duration
+	id           string // the worker's name, used as the lease owner
 }
 
 // New builds a Worker.
 func New(pool *pgxpool.Pool, registry *handlers.Registry, backoff retry.Backoff, id string) *Worker {
-	return &Worker{pool: pool, registry: registry, backoff: backoff, id: id}
+	w := &Worker{pool: pool, registry: registry, backoff: backoff, id: id}
+	w.lease = 30 * time.Second
+	w.pollInterval = 200 * time.Millisecond
+	return w
 }
 
 func (w *Worker) runJob(ctx context.Context, job queue.Job) error {
@@ -83,4 +88,44 @@ func (w *Worker) runPool(ctx context.Context, concurrency int, jobs <-chan queue
 		}()
 	}
 	wg.Wait()
+}
+
+func (w *Worker) wait(ctx context.Context) {
+	select {
+	case <-ctx.Done():
+	case <-time.After(w.pollInterval):
+	}
+}
+
+func (w *Worker) claimLoop(ctx context.Context, concurrency int, jobs chan<- queue.Job) {
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+
+		free := concurrency - int(w.inFlight.Load())
+		if free <= 0 {
+			w.wait(ctx) // nothing free: wait, then check again
+			continue
+		}
+
+		claimed, err := queue.Claim(ctx, w.pool, w.id, free, w.lease)
+		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			log.Printf("context error: %v", ctx.Err())
+			w.wait(ctx)
+			continue
+		}
+		if len(claimed) == 0 {
+			w.wait(ctx)
+			continue
+		}
+
+		w.inFlight.Add(int32(len(claimed)))
+		for _, job := range claimed {
+			jobs <- job
+		}
+	}
 }
