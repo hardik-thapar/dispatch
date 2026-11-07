@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -62,4 +63,21 @@ func (w *Worker) runJob(ctx context.Context, job queue.Job) error {
 		log.Printf("worker %s: result for job %s attempt %d ignored (lost the job)", w.id, job.ID, job.Attempts)
 	}
 	return nil
+}
+
+func (w *Worker) runPool(ctx context.Context, concurrency int, jobs <-chan queue.Job) {
+	var wg sync.WaitGroup
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for job := range jobs {
+				err := w.runJob(ctx, job)
+				if err != nil {
+					log.Printf("worker %s: job %s: %v", w.id, job.ID, err)
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }
