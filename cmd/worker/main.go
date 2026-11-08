@@ -13,6 +13,7 @@ import (
 
 	"github.com/hardik-thapar/dispatch/internal/db"
 	"github.com/hardik-thapar/dispatch/internal/handlers"
+	"github.com/hardik-thapar/dispatch/internal/reaper"
 	"github.com/hardik-thapar/dispatch/internal/retry"
 	"github.com/hardik-thapar/dispatch/internal/worker"
 )
@@ -53,8 +54,17 @@ func main() {
 
 	w := worker.New(pool, reg, retry.Backoff{Base: time.Second, Max: 5 * time.Minute}, workerID)
 
+	reaperDone := make(chan struct{})
+	go func() {
+		reaper.Run(ctx, pool, 5*time.Second)
+		close(reaperDone)
+	}()
+
 	log.Printf("worker %s started with concurrency %d", workerID, concurrency)
-	if err := w.Run(ctx, concurrency); err != nil {
+	err = w.Run(ctx, concurrency)
+	stop()       // make sure the reaper is told to stop too
+	<-reaperDone // wait for it to stop before the pool closes
+	if err != nil {
 		log.Fatalf("worker: %v", err)
 	}
 	log.Printf("worker %s stopped", workerID)
