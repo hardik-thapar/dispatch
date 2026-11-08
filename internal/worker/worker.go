@@ -165,6 +165,12 @@ func (w *Worker) Run(ctx context.Context, concurrency int) error {
 
 	jobs := make(chan queue.Job, concurrency)
 	jobCtx := context.WithoutCancel(ctx)
+	hbCtx, stopHeartbeat := context.WithCancel(jobCtx)
+	hbDone := make(chan struct{})
+	go func() {
+		w.heartbeatLoop(hbCtx, w.lease/3)
+		close(hbDone)
+	}()
 
 	poolDone := make(chan struct{})
 	go func() {
@@ -175,6 +181,8 @@ func (w *Worker) Run(ctx context.Context, concurrency int) error {
 	w.claimLoop(ctx, concurrency, jobs)
 	close(jobs)
 	<-poolDone // wait until the pool has finished everything
+	stopHeartbeat()
+	<-hbDone
 	return nil
 }
 
