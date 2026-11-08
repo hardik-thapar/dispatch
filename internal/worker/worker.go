@@ -177,3 +177,21 @@ func (w *Worker) Run(ctx context.Context, concurrency int) error {
 	<-poolDone // wait until the pool has finished everything
 	return nil
 }
+
+func (w *Worker) heartbeatLoop(ctx context.Context, interval time.Duration) {
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			_, err := queue.ExtendLeases(ctx, w.pool, w.id, w.lease)
+			if err != nil && ctx.Err() != nil {
+				log.Printf("worker %s: heartbeat failed: %v", w.id, err)
+			}
+		}
+	}
+}
