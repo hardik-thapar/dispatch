@@ -35,14 +35,21 @@ func New(pool *pgxpool.Pool, registry *handlers.Registry, backoff retry.Backoff,
 }
 
 func (w *Worker) runJob(ctx context.Context, job queue.Job) error {
+	// start the history row; before the handler runs
+	if err := queue.StartAttempt(ctx, w.pool, job.ID, job.Attempts, w.id); err != nil {
+		log.Printf("worker %s: could not record start of job %s: %v", w.id, job.ID, err)
+	}
+
 	// Step 1: run
 	var handlerErr error
+	var timedOut bool
 	timeout := time.Duration(job.MaxRunTime) * time.Second
 	if timeout <= 0 {
 		timeout = 30 * time.Second
 	}
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+
 	h, found := w.registry.Get(job.Type)
 	if !found {
 		handlerErr = fmt.Errorf("no handler for type %q", job.Type)
@@ -51,6 +58,7 @@ func (w *Worker) runJob(ctx context.Context, job queue.Job) error {
 	}
 	if handlerErr != nil && runCtx.Err() == context.DeadlineExceeded {
 		handlerErr = fmt.Errorf("job timed out after %ds", int(timeout.Seconds()))
+		timedOut = true
 	}
 	// Step 2: record
 	var recorded bool
@@ -62,13 +70,33 @@ func (w *Worker) runJob(ctx context.Context, job queue.Job) error {
 		recorded, err = queue.Fail(ctx, w.pool, job.ID, job.Attempts, handlerErr.Error(), w.backoff.Delay(job.Attempts))
 	}
 
-	// Step 3: check
 	if err != nil {
 		return fmt.Errorf("record result: %w", err)
 	}
+
+	result := "succeeded"
+	switch {
+	case !recorded:
+		result = "lease_lost"
+	case timedOut:
+		result = "timed_out"
+	case handlerErr != nil:
+		result = "failed"
+	}
+
+	errMsg := ""
+	if handlerErr != nil {
+		errMsg = handlerErr.Error()
+	}
+	if err := queue.FinishAttempt(ctx, w.pool, job.ID, job.Attempts, result, errMsg); err != nil {
+		log.Printf("worker %s: could not record end of job %s: %v", w.id, job.ID, err)
+	}
+
+	// Step 3: check
 	if !recorded {
 		log.Printf("worker %s: result for job %s attempt %d ignored (lost the job)", w.id, job.ID, job.Attempts)
 	}
+
 	return nil
 }
 
@@ -114,7 +142,7 @@ func (w *Worker) claimLoop(ctx context.Context, concurrency int, jobs chan<- que
 			if ctx.Err() != nil {
 				return
 			}
-			log.Printf("context error: %v", ctx.Err())
+			log.Printf("worker %s: claim failed: %v", w.id, err)
 			w.wait(ctx)
 			continue
 		}
