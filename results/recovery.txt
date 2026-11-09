@@ -1,49 +1,50 @@
 Dispatch benchmark
-date:      2026-11-09 17:12 IST
+date:      2026-11-09 17:21 IST
 machine:   darwin/arm64, 8 CPUs
 go:        go1.27.3
 postgres:  16.15 (Debian 16.15-1.pgdg13+2) (Docker, same machine)
-commit:    ab2d7e2
+commit:    f3a29f3
 
 Crash recovery time: a worker is killed with kill -9 while it runs jobs.
 Recovery = time from the kill until another worker STARTS the interrupted job again.
-4 workers, reaper every 1s, poll interval 200ms, 10 runs per lease, times in seconds
+4 workers, reaper every 1s, poll interval 200ms, 10 kills per lease, times in seconds
 
-  lease  runs  jobs     min  median     max   expected
-lease=1s run 1/10: 4 interrupted jobs, recovered in 1.42 to 1.43 s
-lease=1s run 2/10: 2 interrupted jobs, recovered in 1.16 to 1.16 s
-lease=1s run 3/10: 4 interrupted jobs, recovered in 1.03 to 1.04 s
-lease=1s run 4/10: 4 interrupted jobs, recovered in 0.88 to 0.88 s
-lease=1s run 5/10: 2 interrupted jobs, recovered in 1.32 to 1.33 s
-lease=1s run 6/10: 2 interrupted jobs, recovered in 1.02 to 1.03 s
-lease=1s run 7/10: 4 interrupted jobs, recovered in 1.12 to 1.13 s
-lease=1s run 8/10: 4 interrupted jobs, recovered in 1.41 to 1.42 s
-lease=1s run 9/10: 2 interrupted jobs, recovered in 1.56 to 1.57 s
-lease=1s run 10/10: 2 interrupted jobs, recovered in 1.42 to 1.43 s
-     1s    10    30    0.88    1.16    1.57   0.7 to 2.2
-lease=3s run 1/10: 4 interrupted jobs, recovered in 2.26 to 2.27 s
-lease=3s run 2/10: 2 interrupted jobs, recovered in 2.25 to 2.26 s
-lease=3s run 3/10: 2 interrupted jobs, recovered in 3.01 to 3.02 s
-lease=3s run 4/10: 4 interrupted jobs, recovered in 3.00 to 3.12 s
-lease=3s run 5/10: 4 interrupted jobs, recovered in 2.94 to 2.98 s
-lease=3s run 6/10: 4 interrupted jobs, recovered in 2.66 to 2.67 s
-lease=3s run 7/10: 2 interrupted jobs, recovered in 3.00 to 3.01 s
-lease=3s run 8/10: 4 interrupted jobs, recovered in 2.57 to 2.58 s
-lease=3s run 9/10: 4 interrupted jobs, recovered in 2.11 to 2.21 s
-lease=3s run 10/10: 4 interrupted jobs, recovered in 2.81 to 2.83 s
-     3s    10    34    2.11    2.67    3.12   2.0 to 4.2
-lease=10s run 1/10: 4 interrupted jobs, recovered in 7.38 to 7.41 s
-lease=10s run 2/10: 2 interrupted jobs, recovered in 7.65 to 7.66 s
-lease=10s run 3/10: 2 interrupted jobs, recovered in 8.56 to 8.57 s
-lease=10s run 4/10: 4 interrupted jobs, recovered in 6.99 to 7.12 s
-lease=10s run 5/10: 4 interrupted jobs, recovered in 8.56 to 8.57 s
-lease=10s run 6/10: 4 interrupted jobs, recovered in 9.92 to 9.93 s
-lease=10s run 7/10: 2 interrupted jobs, recovered in 9.30 to 9.31 s
-lease=10s run 8/10: 2 interrupted jobs, recovered in 7.12 to 7.13 s
-lease=10s run 9/10: 2 interrupted jobs, recovered in 10.68 to 10.69 s
-lease=10s run 10/10: 4 interrupted jobs, recovered in 7.67 to 7.68 s
-    10s    10    30    6.99    7.68   10.69   6.7 to 11.2
+  lease  kills  jobs     min  median     max   expected
+lease=1s run 1/10: 4 interrupted jobs, recovered in 1.16 to 1.24 s
+lease=1s run 2/10: 4 interrupted jobs, recovered in 0.88 to 0.91 s
+lease=1s run 3/10: 4 interrupted jobs, recovered in 1.05 to 1.06 s
+lease=1s run 4/10: 2 interrupted jobs, recovered in 1.64 to 1.65 s
+lease=1s run 5/10: 4 interrupted jobs, recovered in 2.07 to 2.16 s
+lease=1s run 6/10: 2 interrupted jobs, recovered in 1.04 to 1.05 s
+lease=1s run 7/10: 4 interrupted jobs, recovered in 1.01 to 1.03 s
+lease=1s run 8/10: 4 interrupted jobs, recovered in 1.39 to 1.40 s
+lease=1s run 9/10: 4 interrupted jobs, recovered in 1.43 to 1.63 s
+lease=1s run 10/10: 4 interrupted jobs, recovered in 1.39 to 1.40 s
+     1s     10    36    0.90    1.39    2.15   0.7 to 2.2
+lease=3s run 1/10: 4 interrupted jobs, recovered in 3.26 to 3.30 s
+lease=3s run 2/10: 4 interrupted jobs, recovered in 2.27 to 2.28 s
+lease=3s run 3/10: 4 interrupted jobs, recovered in 2.56 to 2.61 s
+lease=3s run 4/10: 2 interrupted jobs, recovered in 2.59 to 2.60 s
+lease=3s run 5/10: 2 interrupted jobs, recovered in 3.96 to 3.97 s
+lease=3s run 6/10: 4 interrupted jobs, recovered in 3.23 to 3.24 s
+lease=3s run 7/10: 4 interrupted jobs, recovered in 2.91 to 3.06 s
+lease=3s run 8/10: 2 interrupted jobs, recovered in 3.47 to 3.49 s
+lease=3s run 9/10: 4 interrupted jobs, recovered in 2.77 to 2.90 s
+lease=3s run 10/10: 4 interrupted jobs, recovered in 2.29 to 2.51 s
+     3s     10    34    2.28    3.06    3.97   2.0 to 4.2
+lease=10s run 1/10: 4 interrupted jobs, recovered in 8.70 to 8.71 s
+lease=10s run 2/10: 2 interrupted jobs, recovered in 9.87 to 9.88 s
+lease=10s run 3/10: 4 interrupted jobs, recovered in 7.67 to 7.69 s
+lease=10s run 4/10: 2 interrupted jobs, recovered in 9.76 to 9.77 s
+lease=10s run 5/10: 2 interrupted jobs, recovered in 10.58 to 10.59 s
+lease=10s run 6/10: 2 interrupted jobs, recovered in 8.37 to 8.38 s
+lease=10s run 7/10: 4 interrupted jobs, recovered in 8.52 to 8.53 s
+lease=10s run 8/10: 2 interrupted jobs, recovered in 9.89 to 9.90 s
+lease=10s run 9/10: 2 interrupted jobs, recovered in 9.12 to 9.13 s
+lease=10s run 10/10: 4 interrupted jobs, recovered in 9.85 to 10.01 s
+    10s     10    28    7.69    9.77   10.59   6.7 to 11.2
 
+min, median and max are over kills (one value per killed worker).
 expected = 2/3 of the lease (a heartbeat was sent shortly before the kill)
            up to lease + reaper interval + poll interval.
 Jobs from the same killed worker share one kill time, so they are not independent samples.
