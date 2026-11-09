@@ -75,7 +75,7 @@ func gitCommit() string {
 		return "unknown"
 	}
 	commit := strings.TrimSpace(string(out))
-	if status, err := exec.Command("git", "status", "--porcelain").Output(); err == nil && strings.TrimSpace(string(status)) != "" {
+	if status, err := exec.Command("git", "status", "--porcelain", "--", ".", ":(exclude)results").Output(); err == nil && strings.TrimSpace(string(status)) != "" {
 		commit += "-dirty"
 	}
 	return commit
