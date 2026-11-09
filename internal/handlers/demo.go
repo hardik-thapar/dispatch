@@ -16,7 +16,8 @@ import (
 // demoPayload is the JSON the demo handlers read from a job's payload.
 type demoPayload struct {
 	URL     string `json:"url"`      // used by the webhook handler
-	SleepMS int    `json:"sleep_ms"` // pretend to work for this long
+	SleepMS int    `json:"sleep_ms"` // pretend to work for this
+	AfterMS int    `json:"after_ms"` // keep running this long AFTER the effect is writtenlong
 }
 
 // parsePayload reads the payload. An empty payload means all defaults.
@@ -59,7 +60,10 @@ func SideEffect(pool *pgxpool.Pool) Handler {
 		_, err = pool.Exec(ctx,
 			`INSERT INTO side_effects (effect_key, job_id) VALUES ($1, $2)
 			 ON CONFLICT (effect_key) DO NOTHING`, key, job.ID)
-		return err
+		if err != nil {
+			return err
+		}
+		return sleepCtx(ctx, p.AfterMS)
 	}
 }
 
@@ -76,7 +80,10 @@ func Counter(pool *pgxpool.Pool) Handler {
 			return err
 		}
 		_, err = pool.Exec(ctx, `INSERT INTO counter_effects (job_id) VALUES ($1)`, job.ID)
-		return err
+		if err != nil {
+			return err
+		}
+		return sleepCtx(ctx, p.AfterMS)
 	}
 }
 
