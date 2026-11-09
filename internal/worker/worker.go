@@ -34,6 +34,11 @@ func New(pool *pgxpool.Pool, registry *handlers.Registry, backoff retry.Backoff,
 	return w
 }
 
+// SetLease sets how long a claim lasts before it expires. Call it before Run.
+func (w *Worker) SetLease(d time.Duration) {
+	w.lease = d
+}
+
 func (w *Worker) runJob(ctx context.Context, job queue.Job) error {
 	// start the history row; before the handler runs
 	if err := queue.StartAttempt(ctx, w.pool, job.ID, job.Attempts, w.id); err != nil {

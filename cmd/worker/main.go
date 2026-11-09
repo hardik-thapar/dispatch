@@ -53,10 +53,11 @@ func main() {
 	reg.Register("send_webhook", handlers.Webhook(&http.Client{Timeout: 10 * time.Second}))
 
 	w := worker.New(pool, reg, retry.Backoff{Base: time.Second, Max: 5 * time.Minute}, workerID)
-
+	w.SetLease(envDuration("WORKER_LEASE", 30*time.Second))
+	reaperInterval := envDuration("REAPER_INTERVAL", 5*time.Second)
 	reaperDone := make(chan struct{})
 	go func() {
-		reaper.Run(ctx, pool, 5*time.Second)
+		reaper.Run(ctx, pool, reaperInterval)
 		close(reaperDone)
 	}()
 
@@ -68,4 +69,18 @@ func main() {
 		log.Fatalf("worker: %v", err)
 	}
 	log.Printf("worker %s stopped", workerID)
+}
+
+// envDuration reads a duration such as "3s" from an environment variable.
+// If the variable is not set, def is used.
+func envDuration(name string, def time.Duration) time.Duration {
+	v := os.Getenv(name)
+	if v == "" {
+		return def
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		log.Fatalf("%s must be a duration such as 3s, got %q", name, v)
+	}
+	return d
 }
