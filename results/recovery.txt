@@ -3,7 +3,7 @@ date:      2026-11-09 17:08 IST
 machine:   darwin/arm64, 8 CPUs
 go:        go1.27.3
 postgres:  16.15 (Debian 16.15-1.pgdg13+2) (Docker, same machine)
-commit:    23265ff-dirty
+commit:    23265ff
 
 Crash recovery time: a worker is killed with kill -9 while it runs jobs.
 Recovery = time from the kill until another worker STARTS the interrupted job again.
