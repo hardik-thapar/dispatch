@@ -1,0 +1,32 @@
+Dispatch chaos test
+date:      2026-11-09 17:56 IST
+machine:   darwin/arm64, 8 CPUs
+go:        go1.27.3
+postgres:  16.15 (Debian 16.15-1.pgdg13+2) (Docker, same machine)
+commit:    598ab0e
+jobs: 2000 (half idempotent side_effect, half non-idempotent counter), max attempts 50
+workers: 4 processes x 4 slots, lease 3s, reaper every 1s, 20 planned kills (kill -9)
+
+
+==================== chaos results ====================
+jobs submitted:                          2000
+workers killed with kill -9:             20
+time until all jobs finished:            2m10s
+--- jobs
+succeeded:                               2000
+dead (ran out of attempts):              0
+LOST OR STUCK (queued or running):       0   (target 0)
+--- idempotent handler (side_effect)
+jobs that ran more than once:            35
+succeeded jobs with no effect:           0   (target 0)
+DUPLICATE EFFECTS:                       0   (target 0)
+--- non-idempotent control (counter)
+jobs that ran more than once:            42
+succeeded jobs with no effect:           0   (target 0)
+DUPLICATE EFFECTS:                       44   (expected more than 0 after crashes)
+--- attempts
+total attempts:                          2080   (80 extra beyond one per job)
+attempts closed as lease_lost (crashed): 80
+attempts still open:                     0
+=======================================================
+RESULT: PASS (no lost jobs, no missing effects, no duplicate idempotent effects)
