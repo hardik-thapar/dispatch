@@ -62,14 +62,14 @@ func runRecovery(ctx context.Context, args []string) {
 			sort.Float64s(secs)
 			fmt.Fprintf(os.Stderr, "lease=%v run %d/%d: %d interrupted jobs, recovered in %.2f to %.2f s\n",
 				lease, rep, *reps, len(secs), secs[0], secs[len(secs)-1])
-			perKill = append(perKill, secs[len(secs)/2])
+			perKill = append(perKill, median(secs))
 			jobCount += len(secs)
 		}
 		sort.Float64s(perKill)
 		low := (2 * lease / 3).Seconds()
 		high := (lease + *reaper + *poll*5/4).Seconds()
 		fmt.Printf("%7v %6d %5d %7.2f %7.2f %7.2f   %.1f to %.1f\n",
-			lease, len(perKill), jobCount, perKill[0], perKill[len(perKill)/2], perKill[len(perKill)-1], low, high)
+			lease, len(perKill), jobCount, perKill[0], median(perKill), perKill[len(perKill)-1], low, high)
 	}
 
 	fmt.Println()
@@ -208,4 +208,13 @@ func waitUntil(timeout time.Duration, check func() (bool, error)) error {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
+}
+
+// median returns the median of a sorted slice: the middle value, or the average of the two middle values.
+func median(sorted []float64) float64 {
+	n := len(sorted)
+	if n%2 == 1 {
+		return sorted[n/2]
+	}
+	return (sorted[n/2-1] + sorted[n/2]) / 2
 }
