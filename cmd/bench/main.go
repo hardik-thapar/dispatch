@@ -25,6 +25,8 @@ func main() {
 	switch os.Args[1] {
 	case "throughput":
 		runThroughput(ctx, os.Args[2:])
+	case "latency":
+		runLatency(ctx, os.Args[2:])
 	default:
 		usage()
 	}
@@ -35,6 +37,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "commands:")
 	fmt.Fprintln(os.Stderr, "  throughput   jobs per second against the number of workers")
+	fmt.Fprintln(os.Stderr, "  latency      queue wait time at steady arrival rates")
 	os.Exit(2)
 }
 

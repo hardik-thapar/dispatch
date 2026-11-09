@@ -41,6 +41,11 @@ func (w *Worker) SetLease(d time.Duration) {
 	w.lease = d
 }
 
+// SetPollInterval sets how long the claim loop sleeps when there is nothing to do.
+func (w *Worker) SetPollInterval(d time.Duration) {
+	w.pollInterval = d
+}
+
 func (w *Worker) runJob(ctx context.Context, job queue.Job) error {
 	// start the history row; before the handler runs
 	if err := queue.StartAttempt(ctx, w.pool, job.ID, job.Attempts, w.id); err != nil {

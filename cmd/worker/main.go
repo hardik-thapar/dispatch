@@ -55,6 +55,7 @@ func main() {
 
 	w := worker.New(pool, reg, retry.Backoff{Base: time.Second, Max: 5 * time.Minute}, workerID)
 	w.SetLease(envDuration("WORKER_LEASE", 30*time.Second))
+	w.SetPollInterval(envDuration("WORKER_POLL_INTERVAL", 200*time.Millisecond))
 	reaperInterval := envDuration("REAPER_INTERVAL", 5*time.Second)
 	reaperDone := make(chan struct{})
 	go func() {
