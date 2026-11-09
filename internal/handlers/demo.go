@@ -116,3 +116,10 @@ func Webhook(client *http.Client) Handler {
 		return nil
 	}
 }
+
+// Noop does nothing and succeeds at once. Benchmarks use it to measure the queue itself.
+func Noop() Handler {
+	return func(ctx context.Context, job queue.Job) error {
+		return nil
+	}
+}

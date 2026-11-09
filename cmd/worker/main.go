@@ -51,6 +51,7 @@ func main() {
 	reg.Register("side_effect", handlers.SideEffect(pool))
 	reg.Register("counter", handlers.Counter(pool))
 	reg.Register("send_webhook", handlers.Webhook(&http.Client{Timeout: 10 * time.Second}))
+	reg.Register("noop", handlers.Noop())
 
 	w := worker.New(pool, reg, retry.Backoff{Base: time.Second, Max: 5 * time.Minute}, workerID)
 	w.SetLease(envDuration("WORKER_LEASE", 30*time.Second))
