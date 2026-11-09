@@ -40,7 +40,6 @@ func Submit(ctx context.Context, pool *pgxpool.Pool, input SubmitInput) (queue.J
 		input.Payload = []byte("{}")
 	}
 
-
 	sql := `INSERT INTO jobs(tenant_id, type, payload, priority, run_at, max_attempts, idempotency_key)
 	VALUES ($1,$2,$3,$4,coalesce($5::timestamptz, now()),$6,$7)
 	ON CONFLICT(tenant_id, idempotency_key) DO NOTHING
