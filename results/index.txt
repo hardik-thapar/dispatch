@@ -1,0 +1,19 @@
+2026/11/09 17:44:46 inserting 1000000 rows (this takes a while)...
+Dispatch benchmark
+date:      2026-11-09 17:44 IST
+machine:   darwin/arm64, 8 CPUs
+go:        go1.27.3
+postgres:  16.15 (Debian 16.15-1.pgdg13+2) (Docker, same machine)
+commit:    315d3ec
+
+Index effect on the claim query: 1000000 rows in jobs, 1000 queued, 999000 succeeded
+EXPLAIN ANALYZE of the claim's SELECT (ORDER BY priority, run_at LIMIT 1 FOR UPDATE SKIP LOCKED),
+median execution time of 30 runs after 3 warm-up runs
+
+index                                    plan                                          median ms  index size
+none                                     Seq Scan                                         60.674           -
+full index (status, priority, run_at)    Index Scan using idx_bench_full                   0.009      6.8 MB
+partial index (queued rows only)         Index Scan using idx_jobs_queued                  0.006       16 KB
+
+The claim's WHERE and ORDER BY match the partial index, so it reads only queued rows.
+The real index (partial) has been put back.

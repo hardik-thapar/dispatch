@@ -1,0 +1,24 @@
+Dispatch benchmark
+date:      2026-11-09 17:44 IST
+machine:   darwin/arm64, 8 CPUs
+go:        go1.27.3
+postgres:  16.15 (Debian 16.15-1.pgdg13+2) (Docker, same machine)
+commit:    315d3ec
+
+Retry herd: 10000 jobs fail at the same instant, backoff base 1s, maximum 5m0s
+This is a SIMULATION of the retry schedule with the real backoff function, not a live run.
+Peak = the most retries that start within any one second (whole-second buckets).
+Median of 5 random trials for the jitter column.
+
+attempt  delay with jitter  peak/s no jitter   peak/s jitter  reduction
+      1        500ms to 1s             10000           10000       1.0x
+      2           1s to 2s             10000           10000       1.0x
+      3           2s to 4s             10000            5026       2.0x
+      4           4s to 8s             10000            2553       3.9x
+      5          8s to 16s             10000            1294       7.7x
+      6         16s to 32s             10000             666      15.0x
+      8       1m4s to 2m8s             10000             187      53.5x
+     10      2m30s to 5m0s             10000              90     111.1x
+
+With a short delay, all retries still fall inside one second, so jitter cannot help yet.
+The longer the delay, the wider the window the jitter spreads the retries over.
