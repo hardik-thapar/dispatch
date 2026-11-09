@@ -1,33 +1,48 @@
 Dispatch benchmark
-date:      2026-11-09 17:08 IST
+date:      2026-11-09 17:12 IST
 machine:   darwin/arm64, 8 CPUs
 go:        go1.27.3
 postgres:  16.15 (Debian 16.15-1.pgdg13+2) (Docker, same machine)
-commit:    23265ff
+commit:    ab2d7e2
 
 Crash recovery time: a worker is killed with kill -9 while it runs jobs.
 Recovery = time from the kill until another worker STARTS the interrupted job again.
-4 workers, reaper every 1s, poll interval 200ms, 5 runs per lease, times in seconds
+4 workers, reaper every 1s, poll interval 200ms, 10 runs per lease, times in seconds
 
   lease  runs  jobs     min  median     max   expected
-lease=1s run 1/5: 2 interrupted jobs, recovered in 1.71 to 1.72 s
-lease=1s run 2/5: 2 interrupted jobs, recovered in 1.12 to 1.13 s
-lease=1s run 3/5: 4 interrupted jobs, recovered in 1.27 to 1.43 s
-lease=1s run 4/5: 4 interrupted jobs, recovered in 1.72 to 1.73 s
-lease=1s run 5/5: 2 interrupted jobs, recovered in 1.17 to 1.17 s
-     1s     5    14    1.12    1.43    1.73   0.7 to 2.2
-lease=3s run 1/5: 4 interrupted jobs, recovered in 2.10 to 2.18 s
-lease=3s run 2/5: 2 interrupted jobs, recovered in 2.77 to 2.77 s
-lease=3s run 3/5: 2 interrupted jobs, recovered in 2.98 to 2.99 s
-lease=3s run 4/5: 4 interrupted jobs, recovered in 2.25 to 2.37 s
-lease=3s run 5/5: 4 interrupted jobs, recovered in 3.09 to 3.17 s
-     3s     5    16    2.10    2.77    3.17   2.0 to 4.2
-lease=10s run 1/5: 4 interrupted jobs, recovered in 7.54 to 7.60 s
-lease=10s run 2/5: 4 interrupted jobs, recovered in 10.44 to 10.49 s
-lease=10s run 3/5: 4 interrupted jobs, recovered in 7.40 to 7.41 s
-lease=10s run 4/5: 2 interrupted jobs, recovered in 8.03 to 8.04 s
-lease=10s run 5/5: 4 interrupted jobs, recovered in 8.10 to 8.17 s
-    10s     5    18    7.40    8.04   10.49   6.7 to 11.2
+lease=1s run 1/10: 4 interrupted jobs, recovered in 1.42 to 1.43 s
+lease=1s run 2/10: 2 interrupted jobs, recovered in 1.16 to 1.16 s
+lease=1s run 3/10: 4 interrupted jobs, recovered in 1.03 to 1.04 s
+lease=1s run 4/10: 4 interrupted jobs, recovered in 0.88 to 0.88 s
+lease=1s run 5/10: 2 interrupted jobs, recovered in 1.32 to 1.33 s
+lease=1s run 6/10: 2 interrupted jobs, recovered in 1.02 to 1.03 s
+lease=1s run 7/10: 4 interrupted jobs, recovered in 1.12 to 1.13 s
+lease=1s run 8/10: 4 interrupted jobs, recovered in 1.41 to 1.42 s
+lease=1s run 9/10: 2 interrupted jobs, recovered in 1.56 to 1.57 s
+lease=1s run 10/10: 2 interrupted jobs, recovered in 1.42 to 1.43 s
+     1s    10    30    0.88    1.16    1.57   0.7 to 2.2
+lease=3s run 1/10: 4 interrupted jobs, recovered in 2.26 to 2.27 s
+lease=3s run 2/10: 2 interrupted jobs, recovered in 2.25 to 2.26 s
+lease=3s run 3/10: 2 interrupted jobs, recovered in 3.01 to 3.02 s
+lease=3s run 4/10: 4 interrupted jobs, recovered in 3.00 to 3.12 s
+lease=3s run 5/10: 4 interrupted jobs, recovered in 2.94 to 2.98 s
+lease=3s run 6/10: 4 interrupted jobs, recovered in 2.66 to 2.67 s
+lease=3s run 7/10: 2 interrupted jobs, recovered in 3.00 to 3.01 s
+lease=3s run 8/10: 4 interrupted jobs, recovered in 2.57 to 2.58 s
+lease=3s run 9/10: 4 interrupted jobs, recovered in 2.11 to 2.21 s
+lease=3s run 10/10: 4 interrupted jobs, recovered in 2.81 to 2.83 s
+     3s    10    34    2.11    2.67    3.12   2.0 to 4.2
+lease=10s run 1/10: 4 interrupted jobs, recovered in 7.38 to 7.41 s
+lease=10s run 2/10: 2 interrupted jobs, recovered in 7.65 to 7.66 s
+lease=10s run 3/10: 2 interrupted jobs, recovered in 8.56 to 8.57 s
+lease=10s run 4/10: 4 interrupted jobs, recovered in 6.99 to 7.12 s
+lease=10s run 5/10: 4 interrupted jobs, recovered in 8.56 to 8.57 s
+lease=10s run 6/10: 4 interrupted jobs, recovered in 9.92 to 9.93 s
+lease=10s run 7/10: 2 interrupted jobs, recovered in 9.30 to 9.31 s
+lease=10s run 8/10: 2 interrupted jobs, recovered in 7.12 to 7.13 s
+lease=10s run 9/10: 2 interrupted jobs, recovered in 10.68 to 10.69 s
+lease=10s run 10/10: 4 interrupted jobs, recovered in 7.67 to 7.68 s
+    10s    10    30    6.99    7.68   10.69   6.7 to 11.2
 
 expected = 2/3 of the lease (a heartbeat was sent shortly before the kill)
            up to lease + reaper interval + poll interval.
