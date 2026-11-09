@@ -27,6 +27,8 @@ func main() {
 		runThroughput(ctx, os.Args[2:])
 	case "latency":
 		runLatency(ctx, os.Args[2:])
+	case "recovery":
+		runRecovery(ctx, os.Args[2:])
 	default:
 		usage()
 	}
@@ -38,6 +40,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "commands:")
 	fmt.Fprintln(os.Stderr, "  throughput   jobs per second against the number of workers")
 	fmt.Fprintln(os.Stderr, "  latency      queue wait time at steady arrival rates")
+	fmt.Fprintln(os.Stderr, "  recovery     time until a killed worker's job is restarted")
 	os.Exit(2)
 }
 
@@ -146,5 +149,15 @@ func (s *workerSet) stop() {
 			_ = c.Process.Kill()
 			<-s.done[i]
 		}
+	}
+}
+
+// kill stops all workers at once with SIGKILL. Used when jobs would take too long to finish politely.
+func (s *workerSet) kill() {
+	for _, c := range s.cmds {
+		_ = c.Process.Kill()
+	}
+	for _, d := range s.done {
+		<-d
 	}
 }
