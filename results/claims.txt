@@ -1,0 +1,26 @@
+Dispatch benchmark
+date:      2026-11-09 17:38 IST
+machine:   darwin/arm64, 8 CPUs
+go:        go1.27.3
+postgres:  16.15 (Debian 16.15-1.pgdg13+2) (Docker, same machine)
+commit:    a746cbc
+
+Claim strategy comparison: 16 concurrent claimers, 20000 queued jobs, one job per claim, median of 3 runs
+No handler runs: every claimer just claims jobs until none are queued.
+
+strategy                        jobs/s  double claims  % double  empty claims
+naive select, then update run 1/3: 1077 jobs/s, 102792 double claims, 533 empty claims
+naive select, then update run 2/3: 1112 jobs/s, 102921 double claims, 589 empty claims
+naive select, then update run 3/3: 1146 jobs/s, 103315 double claims, 214 empty claims
+naive select, then update         1112         102921     83.7%           533
+FOR UPDATE run 1/3: 4497 jobs/s, 0 double claims, 111 empty claims
+FOR UPDATE run 2/3: 4438 jobs/s, 0 double claims, 81 empty claims
+FOR UPDATE run 3/3: 4418 jobs/s, 0 double claims, 53 empty claims
+FOR UPDATE                        4438              0      0.0%            81
+FOR UPDATE SKIP LOCKED run 1/3: 15482 jobs/s, 0 double claims, 582 empty claims
+FOR UPDATE SKIP LOCKED run 2/3: 15175 jobs/s, 0 double claims, 381 empty claims
+FOR UPDATE SKIP LOCKED run 3/3: 15473 jobs/s, 0 double claims, 294 empty claims
+FOR UPDATE SKIP LOCKED           15473              0      0.0%           381
+
+jobs/s counts each job once. A double claim is a claim of a job that was already claimed.
+An empty claim returned nothing (the claimer retries at once).
