@@ -1,10 +1,20 @@
 Dispatch benchmark
-date:      2026-11-09 14:05 IST
+date:      2026-11-09 14:11 IST
 machine:   darwin/arm64, 8 CPUs
 go:        go1.27.3
 postgres:  16.15 (Debian 16.15-1.pgdg13+2) (Docker, same machine)
-commit:    27fc319-dirty
+commit:    a70279d
 
 Throughput of noop jobs: 20000 jobs per run, median of 3 runs
 
 workers   slots     jobs/s      min      max   speedup
+1             4       2311     2272     2343     1.00x
+2             8       3115     2971     3139     1.35x
+4            16       3909     3889     3932     1.69x
+8            32       4526     4500     4549     1.96x
+16           64       4656     4581     4659     2.01x
+32          128       4331     4323     4384     1.87x
+
+Each worker is a separate process with its own job slots.
+Jobs are inserted in bulk before the workers start, so this measures
+claiming, running and recording jobs, not submitting them.
