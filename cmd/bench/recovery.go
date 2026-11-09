@@ -48,11 +48,12 @@ func runRecovery(ctx context.Context, args []string) {
 	printEnvironment(ctx, pool)
 	fmt.Println("Crash recovery time: a worker is killed with kill -9 while it runs jobs.")
 	fmt.Println("Recovery = time from the kill until another worker STARTS the interrupted job again.")
-	fmt.Printf("%d workers, reaper every %v, poll interval %v, %d runs per lease, times in seconds\n\n", *workers, *reaper, *poll, *reps)
-	fmt.Printf("%7s %5s %5s %7s %7s %7s   %s\n", "lease", "runs", "jobs", "min", "median", "max", "expected")
+	fmt.Printf("%d workers, reaper every %v, poll interval %v, %d kills per lease, times in seconds\n\n", *workers, *reaper, *poll, *reps)
+	fmt.Printf("%7s %6s %5s %7s %7s %7s   %s\n", "lease", "kills", "jobs", "min", "median", "max", "expected")
 
 	for _, lease := range leaseList {
-		var all []float64
+		var perKill []float64 // one value per kill: the median of that kill's interrupted jobs
+		jobCount := 0
 		for rep := 1; rep <= *reps; rep++ {
 			secs, err := recoveryRun(ctx, pool, *bin, *workers, *concurrency, *jobs, lease, *reaper, *poll)
 			if err != nil {
@@ -61,16 +62,18 @@ func runRecovery(ctx context.Context, args []string) {
 			sort.Float64s(secs)
 			fmt.Fprintf(os.Stderr, "lease=%v run %d/%d: %d interrupted jobs, recovered in %.2f to %.2f s\n",
 				lease, rep, *reps, len(secs), secs[0], secs[len(secs)-1])
-			all = append(all, secs...)
+			perKill = append(perKill, secs[len(secs)/2])
+			jobCount += len(secs)
 		}
-		sort.Float64s(all)
+		sort.Float64s(perKill)
 		low := (2 * lease / 3).Seconds()
 		high := (lease + *reaper + *poll*5/4).Seconds()
-		fmt.Printf("%7v %5d %5d %7.2f %7.2f %7.2f   %.1f to %.1f\n",
-			lease, *reps, len(all), all[0], all[len(all)/2], all[len(all)-1], low, high)
+		fmt.Printf("%7v %6d %5d %7.2f %7.2f %7.2f   %.1f to %.1f\n",
+			lease, len(perKill), jobCount, perKill[0], perKill[len(perKill)/2], perKill[len(perKill)-1], low, high)
 	}
 
 	fmt.Println()
+	fmt.Println("min, median and max are over kills (one value per killed worker).")
 	fmt.Println("expected = 2/3 of the lease (a heartbeat was sent shortly before the kill)")
 	fmt.Println("           up to lease + reaper interval + poll interval.")
 	fmt.Println("Jobs from the same killed worker share one kill time, so they are not independent samples.")
