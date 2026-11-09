@@ -34,3 +34,8 @@ func (b Backoff) Delay(attempt int) time.Duration {
 	half := c / 2
 	return half + rand.N(half+1)
 }
+
+// MaxDelay returns the delay without jitter: the longest the job could wait.
+func (b Backoff) MaxDelay(attempt int) time.Duration {
+	return b.ceiling(attempt)
+}

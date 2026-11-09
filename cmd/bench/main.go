@@ -31,6 +31,10 @@ func main() {
 		runRecovery(ctx, os.Args[2:])
 	case "claims":
 		runClaims(ctx, os.Args[2:])
+	case "index":
+		runIndex(ctx, os.Args[2:])
+	case "herd":
+		runHerd(ctx, os.Args[2:])
 	default:
 		usage()
 	}
@@ -44,6 +48,8 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  latency      queue wait time at steady arrival rates")
 	fmt.Fprintln(os.Stderr, "  recovery     time until a killed worker's job is restarted")
 	fmt.Fprintln(os.Stderr, "  claims       naive vs FOR UPDATE vs SKIP LOCKED")
+	fmt.Fprintln(os.Stderr, "  index        claim query time with and without the partial index")
+	fmt.Fprintln(os.Stderr, "  herd         retry herd with and without jitter (a simulation)")
 	os.Exit(2)
 }
 
