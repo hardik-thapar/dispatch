@@ -1,0 +1,34 @@
+Dispatch benchmark
+date:      2026-11-09 17:08 IST
+machine:   darwin/arm64, 8 CPUs
+go:        go1.27.3
+postgres:  16.15 (Debian 16.15-1.pgdg13+2) (Docker, same machine)
+commit:    23265ff-dirty
+
+Crash recovery time: a worker is killed with kill -9 while it runs jobs.
+Recovery = time from the kill until another worker STARTS the interrupted job again.
+4 workers, reaper every 1s, poll interval 200ms, 5 runs per lease, times in seconds
+
+  lease  runs  jobs     min  median     max   expected
+lease=1s run 1/5: 2 interrupted jobs, recovered in 1.71 to 1.72 s
+lease=1s run 2/5: 2 interrupted jobs, recovered in 1.12 to 1.13 s
+lease=1s run 3/5: 4 interrupted jobs, recovered in 1.27 to 1.43 s
+lease=1s run 4/5: 4 interrupted jobs, recovered in 1.72 to 1.73 s
+lease=1s run 5/5: 2 interrupted jobs, recovered in 1.17 to 1.17 s
+     1s     5    14    1.12    1.43    1.73   0.7 to 2.2
+lease=3s run 1/5: 4 interrupted jobs, recovered in 2.10 to 2.18 s
+lease=3s run 2/5: 2 interrupted jobs, recovered in 2.77 to 2.77 s
+lease=3s run 3/5: 2 interrupted jobs, recovered in 2.98 to 2.99 s
+lease=3s run 4/5: 4 interrupted jobs, recovered in 2.25 to 2.37 s
+lease=3s run 5/5: 4 interrupted jobs, recovered in 3.09 to 3.17 s
+     3s     5    16    2.10    2.77    3.17   2.0 to 4.2
+lease=10s run 1/5: 4 interrupted jobs, recovered in 7.54 to 7.60 s
+lease=10s run 2/5: 4 interrupted jobs, recovered in 10.44 to 10.49 s
+lease=10s run 3/5: 4 interrupted jobs, recovered in 7.40 to 7.41 s
+lease=10s run 4/5: 2 interrupted jobs, recovered in 8.03 to 8.04 s
+lease=10s run 5/5: 4 interrupted jobs, recovered in 8.10 to 8.17 s
+    10s     5    18    7.40    8.04   10.49   6.7 to 11.2
+
+expected = 2/3 of the lease (a heartbeat was sent shortly before the kill)
+           up to lease + reaper interval + poll interval.
+Jobs from the same killed worker share one kill time, so they are not independent samples.
