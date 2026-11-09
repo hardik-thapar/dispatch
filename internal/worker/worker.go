@@ -23,7 +23,8 @@ type Worker struct {
 	inFlight     atomic.Int32
 	lease        time.Duration
 	pollInterval time.Duration
-	id           string // the worker's name, used as the lease owner
+	id           string        // the worker's name, used as the lease owner
+	slotFree     chan struct{} // a nudge: "a slot was freed, check for work"
 }
 
 // New builds a Worker.
@@ -31,6 +32,7 @@ func New(pool *pgxpool.Pool, registry *handlers.Registry, backoff retry.Backoff,
 	w := &Worker{pool: pool, registry: registry, backoff: backoff, id: id}
 	w.lease = 30 * time.Second
 	w.pollInterval = 200 * time.Millisecond
+	w.slotFree = make(chan struct{}, 1)
 	return w
 }
 
@@ -114,6 +116,10 @@ func (w *Worker) runPool(ctx context.Context, concurrency int, jobs <-chan queue
 			for job := range jobs {
 				err := w.runJob(ctx, job)
 				w.inFlight.Add(-1)
+				select {
+				case w.slotFree <- struct{}{}:
+				default: // a nudge is already waiting, so skip
+				}
 				if err != nil {
 					log.Printf("worker %s: job %s: %v", w.id, job.ID, err)
 				}
@@ -126,6 +132,7 @@ func (w *Worker) runPool(ctx context.Context, concurrency int, jobs <-chan queue
 func (w *Worker) wait(ctx context.Context) {
 	select {
 	case <-ctx.Done():
+	case <-w.slotFree:
 	case <-time.After(w.pollInterval):
 	}
 }
