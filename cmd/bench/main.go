@@ -29,6 +29,8 @@ func main() {
 		runLatency(ctx, os.Args[2:])
 	case "recovery":
 		runRecovery(ctx, os.Args[2:])
+	case "claims":
+		runClaims(ctx, os.Args[2:])
 	default:
 		usage()
 	}
@@ -41,6 +43,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  throughput   jobs per second against the number of workers")
 	fmt.Fprintln(os.Stderr, "  latency      queue wait time at steady arrival rates")
 	fmt.Fprintln(os.Stderr, "  recovery     time until a killed worker's job is restarted")
+	fmt.Fprintln(os.Stderr, "  claims       naive vs FOR UPDATE vs SKIP LOCKED")
 	os.Exit(2)
 }
 
