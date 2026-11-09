@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math/rand/v2"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -135,10 +136,14 @@ func (w *Worker) runPool(ctx context.Context, concurrency int, jobs <-chan queue
 }
 
 func (w *Worker) wait(ctx context.Context) {
+	// Vary the sleep by up to 25% either way, so workers that started
+	// together do not all wake up together.
+	d := w.pollInterval
+	d += time.Duration(rand.Int64N(int64(d)/2+1)) - d/4
 	select {
 	case <-ctx.Done():
 	case <-w.slotFree:
-	case <-time.After(w.pollInterval):
+	case <-time.After(d):
 	}
 }
 
