@@ -3,6 +3,8 @@ package db
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,12 +19,19 @@ func NewPool(ctx context.Context, url string) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("parse db url: %w", err)
 	}
 
-	// Pool size: a deliberate choice, not the default.
+	// Pool size is a deliberate choice. DB_MAX_CONNS overrides the default (benchmarks use it).
 	cfg.MaxConns = 20
-	cfg.MinConns = 2
+	if v := os.Getenv("DB_MAX_CONNS"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 {
+			return nil, fmt.Errorf("DB_MAX_CONNS must be a number of at least 1, got %q", v)
+		}
+		cfg.MaxConns = int32(n)
+	}
+	cfg.MinConns = 1
 
 	// Safety timeouts, set on every connection (guide decision 14).
-	cfg.ConnConfig.RuntimeParams["statement_timeout"] = "5000"                   // ms
+	cfg.ConnConfig.RuntimeParams["statement_timeout"] = "5000"                    // ms
 	cfg.ConnConfig.RuntimeParams["idle_in_transaction_session_timeout"] = "10000" // ms
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
