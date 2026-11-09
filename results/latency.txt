@@ -1,0 +1,22 @@
+Dispatch benchmark
+date:      2026-11-09 14:37 IST
+machine:   darwin/arm64, 8 CPUs
+go:        go1.27.3
+postgres:  16.15 (Debian 16.15-1.pgdg13+2) (Docker, same machine)
+commit:    ca31b9e-dirty
+
+Queue wait latency: noop jobs arriving at a steady rate
+4 workers (16 slots), poll interval 200ms, 15s of arrivals per run, median of 3 runs
+Wait = time from the job being created to its first attempt starting.
+The first 2 seconds of each run are left out (warm-up).
+
+  rate/s  achieved   p50 ms   p95 ms   p99 ms   max ms
+     500       500    100.6    189.4    198.6    204.6
+    1000      1000     25.9    147.3    173.6    195.2
+    2000      2000      1.2      6.2     12.7     23.6
+    3000      3000      2.4     12.5     20.7     26.5
+
+Jobs are submitted one by one through the same code the API uses.
+When the queue is empty, a worker sleeps for the poll interval, so a
+new job can wait for that sleep to end. A shorter poll interval lowers
+the wait and raises the number of queries sent to the database.
