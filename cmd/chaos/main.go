@@ -1,3 +1,4 @@
+// Command chaos kills worker processes with kill -9 while they run jobs, then counts what was lost or repeated.
 package main
 
 import (
@@ -8,6 +9,8 @@ import (
 	"math/rand/v2"
 	"os"
 	"os/exec"
+	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -27,18 +30,19 @@ type workerProc struct {
 }
 
 func main() {
-	jobs := flag.Int("jobs", 600, "number of jobs to submit")
+	jobs := flag.Int("jobs", 2000, "number of jobs to submit")
 	workers := flag.Int("workers", 4, "number of worker processes to keep running")
-	kills := flag.Int("kills", 10, "how many times to kill a random worker with kill -9 (0 = no crashes)")
+	kills := flag.Int("kills", 20, "how many times to kill a random worker with kill -9 (0 = no crashes)")
 	lease := flag.Duration("lease", 3*time.Second, "worker lease length")
 	reaperEvery := flag.Duration("reaper", time.Second, "reaper interval")
 	workerBin := flag.String("worker-bin", "./bin/worker", "path to the worker binary")
-	timeout := flag.Duration("timeout", 5*time.Minute, "stop waiting after this long")
+	timeout := flag.Duration("timeout", 10*time.Minute, "stop waiting after this long")
 	flag.Parse()
 
 	if _, err := os.Stat(*workerBin); err != nil {
 		log.Fatalf("worker binary not found at %s (build it: go build -o bin/worker ./cmd/worker)", *workerBin)
 	}
+	refuseIfWorkersRunning(*workerBin)
 
 	ctx := context.Background()
 	url := os.Getenv("DATABASE_URL")
@@ -50,6 +54,10 @@ func main() {
 		log.Fatalf("connect to database: %v", err)
 	}
 	defer pool.Close()
+
+	printEnvironment(ctx, pool)
+	fmt.Printf("jobs: %d (half idempotent side_effect, half non-idempotent counter), max attempts 50\n", *jobs)
+	fmt.Printf("workers: %d processes x 4 slots, lease %v, reaper every %v, %d planned kills (kill -9)\n\n", *workers, *lease, *reaperEvery, *kills)
 
 	// ---- Step 1: start from an empty database ----
 	log.Printf("resetting tables (this DELETES all jobs in the database)")
@@ -120,7 +128,7 @@ func main() {
 	for i := 0; i < *workers; i++ {
 		startWorker()
 	}
-	log.Printf("started %d workers (lease %v, reaper every %v)", *workers, *lease, *reaperEvery)
+	log.Printf("started %d workers", *workers)
 
 	// ---- Step 4: kill random workers with kill -9, and replace each one ----
 	stopKilling := make(chan struct{})
@@ -129,7 +137,7 @@ func main() {
 	go func() {
 		defer close(killerDone)
 		for killed < *kills {
-			wait := time.Duration(1000+rand.IntN(2000)) * time.Millisecond
+			wait := time.Duration(2000+rand.IntN(4000)) * time.Millisecond // 2 to 6 seconds apart
 			select {
 			case <-stopKilling:
 				return
@@ -208,6 +216,7 @@ func report(ctx context.Context, pool *pgxpool.Pool, jobs, killed int, elapsed t
 	sideMissing := one(`SELECT count(*) FROM jobs j
 		WHERE j.tenant_id = $1 AND j.type = 'side_effect' AND j.status = 'succeeded'
 		AND NOT EXISTS (SELECT 1 FROM side_effects s WHERE s.job_id = j.id)`, tenant)
+	sideReruns := one(`SELECT count(*) FROM jobs WHERE tenant_id = $1 AND type = 'side_effect' AND attempts > 1`, tenant)
 
 	// non-idempotent control: one row per execution
 	counterRows := one(`SELECT count(*) FROM counter_effects`)
@@ -215,6 +224,7 @@ func report(ctx context.Context, pool *pgxpool.Pool, jobs, killed int, elapsed t
 	counterMissing := one(`SELECT count(*) FROM jobs j
 		WHERE j.tenant_id = $1 AND j.type = 'counter' AND j.status = 'succeeded'
 		AND NOT EXISTS (SELECT 1 FROM counter_effects c WHERE c.job_id = j.id)`, tenant)
+	counterReruns := one(`SELECT count(*) FROM jobs WHERE tenant_id = $1 AND type = 'counter' AND attempts > 1`, tenant)
 
 	// attempt history
 	attempts := one(`SELECT count(*) FROM job_attempts`)
@@ -226,23 +236,25 @@ func report(ctx context.Context, pool *pgxpool.Pool, jobs, killed int, elapsed t
 
 	fmt.Println()
 	fmt.Println("==================== chaos results ====================")
-	fmt.Printf("jobs submitted:                         %d\n", jobs)
-	fmt.Printf("workers killed with kill -9:            %d\n", killed)
-	fmt.Printf("time until all jobs finished:           %v\n", elapsed.Round(time.Second))
+	fmt.Printf("jobs submitted:                          %d\n", jobs)
+	fmt.Printf("workers killed with kill -9:             %d\n", killed)
+	fmt.Printf("time until all jobs finished:            %v\n", elapsed.Round(time.Second))
 	fmt.Println("--- jobs")
-	fmt.Printf("succeeded:                              %d\n", succeeded)
-	fmt.Printf("dead (ran out of attempts):             %d\n", dead)
-	fmt.Printf("LOST OR STUCK (queued or running):      %d   (target 0)\n", unfinished)
+	fmt.Printf("succeeded:                               %d\n", succeeded)
+	fmt.Printf("dead (ran out of attempts):              %d\n", dead)
+	fmt.Printf("LOST OR STUCK (queued or running):       %d   (target 0)\n", unfinished)
 	fmt.Println("--- idempotent handler (side_effect)")
-	fmt.Printf("succeeded jobs with no effect:          %d   (target 0)\n", sideMissing)
-	fmt.Printf("DUPLICATE EFFECTS:                      %d   (target 0)\n", sideDup)
+	fmt.Printf("jobs that ran more than once:            %d\n", sideReruns)
+	fmt.Printf("succeeded jobs with no effect:           %d   (target 0)\n", sideMissing)
+	fmt.Printf("DUPLICATE EFFECTS:                       %d   (target 0)\n", sideDup)
 	fmt.Println("--- non-idempotent control (counter)")
-	fmt.Printf("succeeded jobs with no effect:          %d   (target 0)\n", counterMissing)
-	fmt.Printf("DUPLICATE EFFECTS:                      %d   (expected more than 0 after crashes)\n", counterDup)
+	fmt.Printf("jobs that ran more than once:            %d\n", counterReruns)
+	fmt.Printf("succeeded jobs with no effect:           %d   (target 0)\n", counterMissing)
+	fmt.Printf("DUPLICATE EFFECTS:                       %d   (expected more than 0 after crashes)\n", counterDup)
 	fmt.Println("--- attempts")
-	fmt.Printf("total attempts:                         %d   (%d extra beyond one per job)\n", attempts, attempts-jobs)
+	fmt.Printf("total attempts:                          %d   (%d extra beyond one per job)\n", attempts, attempts-jobs)
 	fmt.Printf("attempts closed as lease_lost (crashed): %d\n", crashed)
-	fmt.Printf("attempts still open:                    %d\n", open)
+	fmt.Printf("attempts still open:                     %d\n", open)
 	fmt.Println("=======================================================")
 
 	ok := unfinished == 0 && dead == 0 && sideMissing == 0 && counterMissing == 0 && sideDup == 0
@@ -252,4 +264,47 @@ func report(ctx context.Context, pool *pgxpool.Pool, jobs, killed int, elapsed t
 		fmt.Println("RESULT: FAIL")
 	}
 	return ok
+}
+
+// printEnvironment prints the machine and software the numbers were measured on.
+func printEnvironment(ctx context.Context, pool *pgxpool.Pool) {
+	var pg string
+	if err := pool.QueryRow(ctx, `SHOW server_version`).Scan(&pg); err != nil {
+		log.Fatalf("read postgres version: %v", err)
+	}
+	fmt.Println("Dispatch chaos test")
+	fmt.Printf("date:      %s\n", time.Now().Format("2006-01-02 15:04 MST"))
+	fmt.Printf("machine:   %s/%s, %d CPUs\n", runtime.GOOS, runtime.GOARCH, runtime.NumCPU())
+	fmt.Printf("go:        %s\n", runtime.Version())
+	fmt.Printf("postgres:  %s (Docker, same machine)\n", pg)
+	fmt.Printf("commit:    %s\n", gitCommit())
+}
+
+// gitCommit returns the short commit hash, with "-dirty" if there are uncommitted changes outside results/.
+func gitCommit() string {
+	out, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output()
+	if err != nil {
+		return "unknown"
+	}
+	commit := strings.TrimSpace(string(out))
+	if status, err := exec.Command("git", "status", "--porcelain", "--", ".", ":(exclude)results").Output(); err == nil && strings.TrimSpace(string(status)) != "" {
+		commit += "-dirty"
+	}
+	return commit
+}
+
+// refuseIfWorkersRunning stops the test if other worker processes exist, because they would also take jobs.
+func refuseIfWorkersRunning(bin string) {
+	out, _ := exec.Command("pgrep", "-f", bin).Output()
+	var others []string
+	for _, pid := range strings.Fields(string(out)) {
+		if pid == fmt.Sprint(os.Getpid()) || pid == fmt.Sprint(os.Getppid()) {
+			continue // this program, or the "go run" that started it
+		}
+		others = append(others, pid)
+	}
+	if len(others) > 0 {
+		log.Fatalf("other worker processes are running (pids: %s). Stop them first: pkill -f %s",
+			strings.Join(others, " "), bin)
+	}
 }
